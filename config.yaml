@@ -1,0 +1,51 @@
+# My-Digirain 配置文件
+
+## RAG 配置
+rag:
+  # 文本分块设置
+  chunk_size: 500          # 每个知识块的大小（字符数）
+  chunk_overlap: 100      # 相邻块之间的重叠（字符数）
+  
+  # 检索设置
+  top_k: 5                 # 返回最相关的 N 个结果
+  min_score: 0.5           # 最小相关性分数
+  
+  # 嵌入模型
+  embedding_model: bge-m3  # 使用 BGE-M3 模型
+  
+## 存储配置
+storage:
+  # 知识库存储路径（独立目录，不复用现有系统）
+  knowledge_base_path: ./knowledge_base/chroma_db
+  
+  # 原始文件备份
+  backup_path: ./knowledge_base/documents
+
+## 支持的格式
+supported_formats:
+  - pdf
+  - epub
+  - txt
+
+## 文件大小限制
+limits:
+  max_file_size: 50MB       # 单个文件最大 50MB
+  max_files: 100            # 知识库最多文档数
+
+## 日志
+logging:
+  level: INFO
+  file: ./logs/my-digirain.log
+
+## OpenClaw 集成
+openclaw:
+  # Skill 触发关键词
+  trigger_keywords:
+    - "学习"
+    - "上传"
+    - "知识库"
+    - "文档"
+    - "my-digirain"
+    
+  # 消息前缀
+  message_prefix: "📚 "
