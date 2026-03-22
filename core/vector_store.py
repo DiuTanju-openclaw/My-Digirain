@@ -142,9 +142,14 @@ class VectorStore:
         search_results = []
         if results["documents"] and results["documents"][0]:
             for i, doc in enumerate(results["documents"][0]):
+                distance = results["distances"][0][i]
+                # 距离值已经按相似度排序，距离越小越相似
+                # 直接使用归一化的相似度 (1 / (1 + distance))
+                score = 1 / (1 + distance)
                 search_results.append({
                     "content": doc,
-                    "score": 1 - results["distances"][0][i],  # 转换为相似度
+                    "score": score,
+                    "distance": distance,
                     "metadata": results["metadatas"][0][i] if results["metadatas"] else {}
                 })
         

@@ -1,151 +1,221 @@
-# My-Digirain - OpenClaw 私有知识库 Skill
+# My-Digirain 🤖📚
 
-你的个人 AI 知识库助手，让 OpenClaw 学习你提供的文档，并基于这些知识回答问题。
+> 基于 Ollama BGE-M3 的本地 RAG 知识库系统
 
-## 什么是 My-Digirain？
+![Python Version](https://img.shields.io/badge/python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-My-Digirain 是一个 OpenClaw Skill，让你可以：
-- 📚 **上传文档学习** - 将 PDF、EPUB、TXT 等文档上传给 AI 学习
-- 💬 **智能问答** - 基于已学习的文档回答问题
-- 🧠 **构建个人知识库** - 持续添加文档，打造专属知识体系
+## 📖 简介
 
-## 安装前提
+My-Digirain 是一个本地 RAG（检索增强生成）知识库系统，支持：
+- 📚 多格式文档导入（PDF, EPUB, TXT, MOBI, AZW3）
+- 🔍 向量语义搜索（BGE-M3 嵌入模型）
+- 💾 ChromaDB 本地向量存储
+- 🧠 RAG 问答（集成 OpenClaw LLM）
 
-在安装 My-Digirain 之前，你需要准备：
+## 🏗️ 架构
 
-### 1. 安装 Ollama（嵌入模型服务）
-
-**macOS / Linux:**
-```bash
-# 安装 Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# 下载 BGE-M3 嵌入模型（用于语义理解）
-ollama pull bge-m3
+```
+My-Digirain/
+├── core/                    # 核心模块
+│   ├── chunker.py          # 智能文本分块
+│   ├── embedder.py         # BGE-M3 向量化
+│   ├── vector_store.py     # ChromaDB 存储
+│   └── rag.py              # RAG 问答模块
+├── scripts/
+│   └── learn.py            # 文档导入脚本
+├── knowledge_base/         # 知识库存储
+│   └── chroma_db/          # ChromaDB 数据
+├── downloads/              # 待处理文档
+└── config.yaml              # 配置文件
 ```
 
-**Windows:**
-1. 下载 Ollama: https://ollama.com/download/windows
-2. 安装后打开终端，运行：`ollama pull bge-m3`
+## ⚡ 性能
 
-### 2. 安装 Python 依赖
+| 指标 | 数据 |
+|------|------|
+| **向量维度** | 1024 (BGE-M3) |
+| **知识库规模** | 87 知识块 |
+| **平均检索延迟** | < 0.5s |
+| **章节导入耗时** | ~3 分钟/章 |
+| **嵌入生成速度** | ~40 秒/块 |
 
-```bash
-# 确保有 Python 3.8+
-python3 --version
+### 章节导入统计
+| 章节 | 字符数 | 知识块 | 耗时 |
+|------|--------|--------|------|
+| 第1-9章 | ~157K | 46 | ~30min |
+| 后记+致谢 | ~13K | 41 | ~1.5min |
+| **总计** | ~170K | 87 | ~33min |
 
-# 安装依赖
-pip install chromadb pypdf epublib python-multipart
-```
+## 🚀 快速开始
 
-## 安装步骤
-
-### 方式一：OpenClaw 用户（推荐）
-
-```bash
-# 安装 Skill
-clawhub install my-digirain
-
-# 重启 OpenClaw
-openclaw restart
-```
-
-### 方式二：手动安装
+### 1. 克隆与安装
 
 ```bash
-# 克隆仓库
+# 克隆项目
 git clone https://github.com/your-repo/My-Digirain.git
 cd My-Digirain
+
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
 
 # 安装依赖
 pip install -r requirements.txt
 ```
 
-## 快速开始
+### 2. 配置 Ollama
 
-### 1. 首次使用
+```bash
+# 安装 Ollama
+curl -fsSL https://ollama.com/install.sh | sh
 
-安装完成后，对 OpenClaw 说：
-```
-你好，我想学习这个文档
-```
-或上传一个文件，My-Digirain 会引导你完成学习。
+# 拉取 BGE-M3 嵌入模型
+ollama pull bge-m3
 
-### 2. 学习文档
-
-方式一：直接上传文件到聊天窗口
-
-方式二：使用命令
-```
-学习 /path/to/your/document.pdf
+# 验证
+ollama list
 ```
 
-### 3. 提问
+### 3. 配置 config.yaml
 
-学习完成后，直接提问：
-```
-关于这个文档的内容，xxx 是怎么说的？
-```
+```yaml
+# config.yaml
+ollama:
+  base_url: "http://localhost:11434"
+  embedding_model: "bge-m3"
 
-## 命令列表
+chroma:
+  persist_directory: "./knowledge_base/chroma_db"
 
-| 命令 | 说明 |
-|------|------|
-| `学习 <文件>` | 上传并学习文档 |
-| `我的知识库` | 查看已学习的文档列表 |
-| `查询 <问题>` | 基于知识库提问 |
-| `删除 <文档名>` | 从知识库移除文档 |
-| `清空知识库` | 删除所有学习的内容 |
-
-## 支持的格式
-
-- PDF (.pdf)
-- EPUB (.epub)
-- 文本 (.txt)
-- Word (.docx) - 即将支持
-
-## 常见问题
-
-### Q: 第一次使用需要做什么？
-A: 确保 Ollama 已安装并运行了 `ollama pull bge-m3`
-
-### Q: 知识库数据存储在哪里？
-A: `knowledge_base/chroma_db/` 目录下
-
-### Q: 可以同时学习多本书吗？
-A: 可以，My-Digirain 支持多个文档，会自动整合知识
-
-### Q: 学习后的文档可以删除吗？
-A: 可以，使用 `删除 <文档名>` 命令
-
-## 技术架构
-
-```
-My-Digirain/
-├── SKILL.md           # Skill 定义
-├── core/              # 核心引擎
-│   ├── chunker.py     # 文本分块
-│   ├── vector_store.py # 向量存储
-│   └── embedder.py    # 嵌入模型
-├── scripts/           # 命令脚本
-│   ├── learn.py       # 学习文档
-│   └── query.py       # 问答
-└── knowledge_base/    # 用户知识库
+chunker:
+  min_chunk_size: 50
+  max_chunk_size: 8000
+  chunk_overlap: 200
 ```
 
-## 更新日志
+### 4. 导入书籍
 
-### v0.1.0 (2026-03-21)
-- ✅ 初始版本
-- ✅ 支持 PDF/EPUB/TXT 文档学习
-- ✅ 基于 BGE-M3 的语义检索
-- ✅ ChromaDB 向量存储
+```bash
+# 导入书籍（支持 PDF, EPUB, TXT, MOBI, AZW3）
+python scripts/learn.py downloads/问题即答案.txt
+```
 
-## 获取帮助
+### 5. RAG 问答
 
-- 问题反馈：https://github.com/your-repo/My-Digirain/issues
-- 文档更新：请查看 README.md
+```python
+import sys
+sys.path.insert(0, '.')
+
+from core.embedder import Embedder
+from core.vector_store import VectorStore
+
+# 检索
+embedder = Embedder()
+store = VectorStore()
+
+query = "优质问题有哪些特征？"
+query_emb = embedder.embed_text(query)
+results = store.search(query_emb, top_k=3)
+
+# 显示结果
+for r in results:
+    print(r['content'][:200])
+```
+
+## 📖 功能特性
+
+### ✅ 已实现
+
+1. **智能章节解析**
+   - 自动跳过目录（TOC）
+   - 多行标题合并
+   - 支持副标题
+
+2. **智能文本分块**
+   - 小文本 (<10K): 500 字符/块
+   - 中等文本 (10K-50K): 4000 字符/块
+   - 大文本 (50K-100K): 8000 字符/块
+   - 超大文本 (>100K): 递归分块
+
+3. **多格式支持**
+   - PDF (pypdf)
+   - EPUB (epublib)
+   - TXT (纯文本)
+   - MOBI/AZW3 (mobi)
+
+4. **RAG 问答**
+   - 向量检索 + LLM 生成
+   - 使用 OpenClaw LLM 整理总结
+
+5. **唯一 ID 生成**
+   - 基于内容哈希 (MD5)
+
+### 🔄 待完成
+
+- [ ] 安装聊天模型（qwen2.5）用于本地 LLM 生成
+- [ ] Web UI 界面
+- [ ] CLI 命令行工具
+
+## 📝 使用示例
+
+### 导入书籍
+
+```bash
+# 方式1: 命令行
+python scripts/learn.py downloads/书籍.txt
+
+# 方式2: Python API
+from scripts.learn import extract_text_from_file, split_by_chapters, learn_chapter
+
+text = extract_text_from_file('book.txt')
+chapters = split_by_chapters(text)
+
+for chapter in chapters:
+    learn_chapter(chapter, '书名')
+```
+
+### 检索查询
+
+```python
+from core.embedder import Embedder
+from core.vector_store import VectorStore
+
+embedder = Embedder()
+store = VectorStore()
+
+# 语义搜索
+results = store.search(
+    embedder.embed_text("你的问题"),
+    top_k=5
+)
+
+for r in results:
+    print(f"相似度: {r['score']:.3f}")
+    print(f"内容: {r['content'][:100]}...")
+```
+
+## 📦 依赖
+
+```
+chromadb>=0.4.0
+ollama>=0.1.0
+pypdf>=3.0.0
+epublib>=0.0.0
+mobi>=0.0.0
+pyyaml>=6.0
+requests>=2.28
+```
+
+## 📄 License
+
+MIT License
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 PR！
 
 ---
 
-**让 AI 更懂你，从 My-Digirain 开始！** 🧠
+*版本: 1.0.0 | 更新: 2026-03-22*

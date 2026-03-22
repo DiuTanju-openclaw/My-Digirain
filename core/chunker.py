@@ -36,7 +36,16 @@ class TextChunker:
     
     MIN_CHUNK_SIZE = 50  # 最小块大小
     
-    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100):
+    # 64K 上下文模型优化配置
+    CONTEXT_OPTIMIZED = {
+        "large": {"chunk_size": 8000, "chunk_overlap": 500},   # 大章节 - 适合 64k 上下文
+        "medium": {"chunk_size": 4000, "chunk_overlap": 300},  # 中等章节
+        "small": {"chunk_size": 2000, "chunk_overlap": 200},    # 小章节
+        "default": {"chunk_size": 500, "chunk_overlap": 100},   # 默认配置
+    }
+    
+    def __init__(self, chunk_size: int = 500, chunk_overlap: int = 100, 
+                 context_mode: str = None):
         # 加载配置
         if CONFIG_FILE.exists():
             with open(CONFIG_FILE) as f:
@@ -46,6 +55,12 @@ class TextChunker:
         else:
             self.chunk_size = chunk_size
             self.chunk_overlap = chunk_overlap
+        
+        # 根据上下文模式调整
+        if context_mode and context_mode in self.CONTEXT_OPTIMIZED:
+            opt = self.CONTEXT_OPTIMIZED[context_mode]
+            self.chunk_size = opt["chunk_size"]
+            self.chunk_overlap = opt["chunk_overlap"]
     
     def chunk_text(self, text: str, source: str = "unknown") -> List[TextChunk]:
         """
@@ -72,7 +87,7 @@ class TextChunker:
                 # 保存当前块（如果非空）
                 if current_chunk.strip():
                     chunk = TextChunk(
-                        id=f"{source}_{chunk_index}",
+                        id=None,  # 让 TextChunk 自动生成 hash ID
                         content=current_chunk.strip(),
                         metadata={
                             "source": source,
@@ -95,7 +110,7 @@ class TextChunker:
         # 保存最后一个块
         if current_chunk.strip():
             chunk = TextChunk(
-                id=f"{source}_{chunk_index}",
+                id=None,  # 让 TextChunk 自动生成 hash ID
                 content=current_chunk.strip(),
                 metadata={
                     "source": source,
@@ -120,6 +135,105 @@ class TextChunker:
         paragraphs = [p.strip() for p in paragraphs if p.strip()]
         
         return paragraphs
+    
+    def smart_chunk_text(self, text: str, source: str = "unknown", 
+                          max_chunk_size: int = None) -> List[TextChunk]:
+        """
+        智能分块 - 根据文本大小自动选择最佳分块策略
+        
+        策略：
+        1. 超大文本 (>100K字符): 先按子章节拆分，再分块
+        2. 大文本 (50K-100K字符): 使用大块模式 (8000字符/块)
+        3. 中等文本 (10K-50K字符): 使用中块模式 (4000字符/块)
+        4. 小文本 (<10K字符): 使用默认模式 (500字符/块)
+        
+        Args:
+            text: 输入文本
+            source: 来源标识
+            max_chunk_size: 最大块大小限制
+            
+        Returns:
+            文本块列表
+        """
+        text_len = len(text)
+        
+        # 保存原始配置
+        original_size = self.chunk_size
+        original_overlap = self.chunk_overlap
+        
+        try:
+            if text_len > 100000:
+                # 超大文本：使用最大块 + 递归拆分
+                print(f"     📐 超大文本 ({text_len} 字符)，使用分阶段分块...")
+                return self._chunk_ultra_large(text, source)
+            elif text_len > 50000:
+                # 大文本：使用大块模式
+                print(f"     📐 大文本 ({text_len} 字符)，使用大块模式...")
+                self.chunk_size = 8000
+                self.chunk_overlap = 500
+            elif text_len > 10000:
+                # 中等文本：使用中块模式
+                print(f"     📐 中等文本 ({text_len} 字符)，使用中块模式...")
+                self.chunk_size = 4000
+                self.chunk_overlap = 300
+            else:
+                # 小文本：使用默认模式
+                self.chunk_size = max_chunk_size or 500
+                self.chunk_overlap = 100
+            
+            # 执行分块
+            return self.chunk_text(text, source)
+            
+        finally:
+            # 恢复原始配置
+            self.chunk_size = original_size
+            self.chunk_overlap = original_overlap
+    
+    def _chunk_ultra_large(self, text: str, source: str) -> List[TextChunk]:
+        """处理超大文本 - 分阶段分块"""
+        # 第一阶段：按子章节/大段落拆分
+        sections = self._split_into_sections(text)
+        
+        all_chunks = []
+        for i, section in enumerate(sections):
+            section_chunks = self.chunk_text(section["content"], 
+                                              f"{source}_s{i}")
+            # 添加节标题到元数据
+            for chunk in section_chunks:
+                chunk.metadata["section_title"] = section.get("title", "")
+            all_chunks.extend(section_chunks)
+        
+        return all_chunks
+    
+    def _split_into_sections(self, text: str) -> List[Dict]:
+        """将文本拆分成更大的节（用于超大文本处理）"""
+        # 按较粗的边界拆分（章节、Part、大节等）
+        section_pattern = r'^(第[一二三四五六七八九十\d]+[章节部篇]|Part\s+\d+|第[一二三四五六七八九十\d]+部分|引言|前言|结论|附录|后记)'
+        
+        lines = text.split('\n')
+        sections = []
+        current_section = {"title": "全文", "content": ""}
+        
+        for line in lines:
+            line = line.strip()
+            if re.match(section_pattern, line, re.IGNORECASE):
+                # 保存上一节
+                if current_section["content"].strip():
+                    sections.append(current_section)
+                # 开始新节
+                current_section = {"title": line, "content": ""}
+            else:
+                current_section["content"] += line + "\n"
+        
+        # 保存最后一节
+        if current_section["content"].strip():
+            sections.append(current_section)
+        
+        # 如果没有找到分节符，整个文本作为一个节
+        if len(sections) == 0:
+            sections = [{"title": "全文", "content": text}]
+        
+        return sections
     
     def chunk_document(self, text: str, source: str = "document", 
                        title: str = "", author: str = "") -> List[TextChunk]:

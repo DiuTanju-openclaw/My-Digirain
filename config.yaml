@@ -3,11 +3,17 @@
 ## RAG 配置
 rag:
   # 文本分块设置
-  chunk_size: 500          # 每个知识块的大小（字符数）
-  chunk_overlap: 100      # 相邻块之间的重叠（字符数）
+  chunk_size: 500          # 每个知识块的大小（字符数）- 默认模式
+  chunk_overlap: 100        # 相邻块之间的重叠（字符数）
+  
+  # 64K 上下文模型优化 (smart_chunk 自动选择)
+  # small: < 10K 字符 -> 500 字符/块
+  # medium: 10K-50K 字符 -> 4000 字符/块  
+  # large: 50K-100K 字符 -> 8000 字符/块
+  # ultra_large: > 100K 字符 -> 分阶段递归分块
   
   # 检索设置
-  top_k: 5                 # 返回最相关的 N 个结果
+  top_k: 5                  # 返回最相关的 N 个结果
   min_score: 0.5           # 最小相关性分数
   
   # 嵌入模型
@@ -26,11 +32,15 @@ supported_formats:
   - pdf
   - epub
   - txt
+  - mobi
+  - azw3
+  - azw
 
 ## 文件大小限制
 limits:
   max_file_size: 50MB       # 单个文件最大 50MB
   max_files: 100            # 知识库最多文档数
+  max_chunk_size: 8000      # 单个知识块最大字符数（64K上下文优化）
 
 ## 日志
 logging:

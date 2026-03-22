@@ -9,6 +9,7 @@ import numpy as np
 from typing import List, Optional
 import yaml
 from pathlib import Path
+import sys
 
 # 配置
 CONFIG_FILE = Path(__file__).parent / "config.yaml"
@@ -35,35 +36,52 @@ class Embedder:
         except:
             return False
     
-    def embed_text(self, text: str) -> List[float]:
+    def embed_text(self, text: str, max_retries: int = 2) -> List[float]:
         """
         将单个文本转为向量
         
         Args:
             text: 输入文本
+            max_retries: 最大重试次数
             
         Returns:
             向量列表
         """
-        try:
-            response = requests.post(
-                f"{self.ollama_url}/api/embeddings",
-                json={
-                    "model": self.model,
-                    "prompt": text
-                },
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                return response.json().get("embedding", [])
-            else:
-                raise Exception(f"Ollama error: {response.text}")
+        # 截断过长文本
+        if len(text) > 8000:
+            text = text[:8000]
+        
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(
+                    f"{self.ollama_url}/api/embeddings",
+                    json={
+                        "model": self.model,
+                        "prompt": text
+                    },
+                    timeout=300  # 5分钟超时，处理大文本
+                )
                 
-        except Exception as e:
-            print(f"嵌入失败: {e}")
-            # 返回零向量作为后备
-            return [0.0] * 1024  # BGE-M3 是 1024 维
+                if response.status_code == 200:
+                    return response.json().get("embedding", [])
+                elif response.status_code == 404:
+                    raise Exception(f"模型 {self.model} 未找到")
+                else:
+                    raise Exception(f"Ollama error: {response.text}")
+                    
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    print(f"     ⚠️ 超时，重试 {attempt+1}/{max_retries}...", flush=True)
+                    continue
+                print(f"     ❌ 嵌入超时: {text[:50]}...", flush=True)
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"     ⚠️ 嵌入失败: {e}，重试中...", flush=True)
+                    continue
+                print(f"     ❌ 嵌入错误: {e}", flush=True)
+        
+        # 返回零向量作为后备
+        return [0.0] * self.get_embedding_dimension()
     
     def embed_batch(self, texts: List[str]) -> List[List[float]]:
         """
